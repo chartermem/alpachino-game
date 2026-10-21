@@ -11,6 +11,14 @@
 <!-- only-site -->
 <!-- Карточка ссылки, иконки сайта и счетчик. В каталоге Яндекс Игр внешние адреса
      запрещены, поэтому build_yandex.py вырезает все между метками only-site. -->
+<!-- Object Storage отдает сайт и по http, и по https, но сам между ними не переводит:
+     кто наберет адрес руками, останется на незащищенном соединении. Перекидываем сами.
+     Проверка на localhost нужна, чтобы игра открывалась с диска при разработке. -->
+<script>
+if (location.protocol === 'http:' && !/^(localhost|127\.|192\.168\.)/.test(location.hostname)) {
+  location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+}
+</script>
 <meta name="description" content="Игра на одну песню: ограбь банк за три минуты – ровно столько длится «Альпачино» группы «чартер». Музыка играет, пока ты жив.">
 <link rel="canonical" href="https://alpachino-game.ru/">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
