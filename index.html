@@ -286,9 +286,10 @@ h1{font-family:var(--poster);font-weight:400;font-size:clamp(20px,6vmin,36px);li
   <div class="hint" id="end-track"></div>
   <div class="board" id="board-end"></div>
   <div class="mailbox only-site" id="mailbox" hidden>
-    <div class="hint">Сделал пресейв? Оставь его почту – участвуешь в розыгрыше. Почта нужна только для этого.</div>
+    <div class="hint">Сделал пресейв? Оставь ту же почту, что и в нем – разыгрываем GTA 6. Сверяем по списку пресейвов, другая почта не подойдет.</div>
     <div class="mailrow"><input id="pmail" class="name mail" type="email" maxlength="80" placeholder="ПОЧТА ПРЕСЕЙВА" autocomplete="email"><button class="btn small" id="btn-mail">Участвую</button></div>
     <div class="hint" id="mail-note"></div>
+    <div class="hint"><a href="/rules.html" target="_blank" rel="noopener">Условия розыгрыша</a></div>
   </div>
   <button class="btn" id="btn-again">Еще раз</button>
   <a class="link only-site" id="end-link" href="#" target="_blank" rel="noopener"></a>
@@ -307,7 +308,7 @@ const qs = new URLSearchParams(location.search);
 const CONFIG = {
   audioSrc: 'alpachino.mp3',              // положить рядом с index.html; нет файла – игра идет по таймеру
   duration: Number(qs.get('d')) || 188.2, // секунд; заменится длительностью трека, ?d=60 для быстрых тестов
-  presaveUrl: 'https://band.link/',       // TODO: ссылка BandLink на пресейв «Альпачино»
+  presaveUrl: 'https://band.link/alpach', // пресейв «Альпачино» на BandLink
   // Что уже вышло – ссылки из закрепа @charterbusinessclass (сверено с tiktok-uploader/links.py).
   // Поменяется закреп – править и там, и здесь.
   allMusicUrl: 'https://band.link/charterband',
@@ -438,9 +439,12 @@ const FIRE_K = TOUCH ? 1.6 : 1;   // на телефоне враги стрел
 let GOD = qs.has('god'); // бессмертие: ?god для отладки или чит HESOYAM в игре
 const DEBUG = qs.has('god'); // только отладка: опоздания прощаются, склейка переносит домой; чит-код этого не дает
 let cheated = false, curName = 'АНОНИМ', lastRec = null; // чит-код или отладочные параметры – рекорд не засчитывается
-const MAIL_KEY = 'alp-mail';
+// Цифра в конце ключа – номер чистки. Таблицу перед розыгрышем обнулили (31.10.2026),
+// и вместе с серверной надо сбросить копию в браузере игрока: иначе он открывает игру
+// и видит свои старые рекорды, пока не ответит сервер. Чистим таблицу снова – меняем цифру.
+const MAIL_KEY = 'alp-mail2';
 // таблица рекордов: пока в браузере игрока (localStorage); один игрок – одна строка, лучшая
-const SCORES_KEY = 'alp-scores', NAME_KEY = 'alp-name';
+const SCORES_KEY = 'alp-scores2', NAME_KEY = 'alp-name';
 // Scores: общая таблица на сервере (Apps Script + Google-таблица), если задан CONFIG.scoresUrl; иначе или без связи – localStorage
 const ID_KEY = 'alp-id';
 const playerId = (() => { try { let id = localStorage.getItem(ID_KEY); if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(ID_KEY, id); } return id; } catch (e) { return ''; } })();
@@ -1936,6 +1940,44 @@ function unloadCar(c) {
   }
   c.unloaded = true; c.parked = true; c.speed = 0; parked.push(c);
 }
+// Патруль прижал игрока и встал – экипаж выходит и стреляет. Раньше машина просто
+// стояла рядом с копами внутри, и это выглядело глупо.
+function copBail(c) {
+  c.crew = [];
+  for (let i = 0; i < 2; i++) {
+    const side = i ? 1 : -1;
+    const x = c.x + Math.cos(c.angle + Math.PI / 2 * side) * 22, y = c.y + Math.sin(c.angle + Math.PI / 2 * side) * 22;
+    const p = { x, y, li: 0, lj: 0, dir: 0, vel: 0, tx: x, ty: y, skin: '#D9B48F', cloth: '#1F3A93',
+      dead: false, cop: true, post: true, bail: true, hp: 1, cd: rand(0.3, 0.9), r: 7, speed: 0, aim: c.angle, stop: 0 };
+    peds.push(p); c.crew.push(p);
+  }
+  c.out = true; c.speed = 0; c.braking = false; c.haltT = 0;
+}
+// Экипаж снаружи. Игрок уехал – бегут обратно и садятся, всех положили – машина брошена.
+// Возвращает 'out' (стоят и стреляют), 'back' (сели, можно ехать) или 'lost' (экипажа нет).
+function copBoard(c, dt, T, away) {
+  c.crew = c.crew.filter(p => !p.dead && peds.indexOf(p) >= 0);
+  if (!c.crew.length) return 'lost';
+  let inside = 0;
+  for (const p of c.crew) {
+    p.ret = away;
+    if (!away) continue;
+    const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d < 16) { inside++; continue; }
+    p.aim = Math.atan2(dy, dx);
+    p.x += dx / d * 130 * dt; p.y += dy / d * 130 * dt;
+  }
+  if (away && inside === c.crew.length) {
+    dropCrew(c); c.out = false; c.haltT = 0; c.bailCd = 3; // пауза, чтобы не выскакивать снова на первом же светофоре
+    return 'back';
+  }
+  return 'out';
+}
+// убрать экипаж с улицы: сели в машину или уехали вместе с ней за кадр
+function dropCrew(c) {
+  for (const p of c.crew || []) { const k = peds.indexOf(p); if (k >= 0) peds.splice(k, 1); }
+  c.crew = [];
+}
 function cityLos(ax, ay, bx, by) {
   const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 20);
   for (let i = 1; i < n; i++) {
@@ -2104,17 +2146,33 @@ function updateCity(dt) {
   }
   for (let i = cops.length - 1; i >= 0; i--) {
     const c = cops[i];
+    const dP = Math.hypot(c.x - P.x, c.y - P.y);
     if (!playing) moveCar(c, dt, 0, 0, false);
+    else if (c.out) {
+      // экипаж снаружи. Игрок отъехал или рванул с места – садятся обратно
+      const fleeing = !walking && Math.abs(player.speed) > 150 && dP > 200;
+      const r = copBoard(c, dt, P, dP > 380 || fleeing);
+      if (r === 'lost') { c.unloaded = true; c.parked = true; c.out = false; parked.push(c); cops.splice(i, 1); continue; }
+    }
     else if (!c.chasing) { if (c.lane || initLane(c)) laneMove(c, dt); else moveCar(c, dt, 0.4, 0, false); } // патруль
-    else { c.lane = false; copAI(c, dt, P); }
-    if (Math.hypot(c.x - P.x, c.y - P.y) > 24 * CELL) { cops.splice(i, 1); continue; }
+    else {
+      c.lane = false;
+      if (c.bailCd > 0) c.bailCd -= dt;
+      // подъехал вплотную к стоящему игроку – тормозит и высаживает экипаж
+      const slow = walking || Math.abs(player.speed) < 45;
+      if (stars() > 0 && dP < 150 && slow) { moveCar(c, dt, Math.abs(c.speed) > 25 ? -1 : 0, 0, false); c.haltT = (c.haltT || 0) + dt; }
+      else { copAI(c, dt, P); c.haltT = (Math.abs(c.speed) < 30 && dP < 320) ? (c.haltT || 0) + dt : 0; }
+      if (stars() > 0 && c.haltT > 0.45 && Math.abs(c.speed) < 40 && !(c.bailCd > 0)) copBail(c);
+    }
+    if (dP > 24 * CELL) { dropCrew(c); cops.splice(i, 1); continue; }
     if (playing) {
       if (walking) carHitsPerson(c, hero, 45);
       else { const f = collideCars(player, c, 30, 35); if (f > 0.15) { explode((player.x + c.x) / 2, (player.y + c.y) / 2, 5, '#CCC'); sfx.thud(Math.min(1, f)); } ramCd -= dt; if (f > 0.25 && ramCd <= 0) { ramCd = 3; addCrimeStar('Таран полиции! Розыск ★', 1, true); } }
     }
     for (let j = i + 1; j < cops.length; j++) collideCars(c, cops[j], 0, 0);
     for (const pc of parked) collideCars(c, pc, 0, 0);
-    if (c.hp <= 0) { explode(c.x, c.y, 40, '#E9E9F0'); cops.splice(i, 1); stat.cops++; payout(c.x, c.y, 200); addCrimeStar('Разбил патруль! Розыск ★', 1, true); }
+    // пустую машину (экипаж уже снаружи) в счет убитых копов не пишем – там некого убивать
+    if (c.hp <= 0) { explode(c.x, c.y, 40, '#E9E9F0'); cops.splice(i, 1); if (!c.out) { stat.cops++; payout(c.x, c.y, 200); } addCrimeStar('Разбил патруль! Розыск ★', 1, true); }
   }
 
   // трафик
@@ -2182,7 +2240,7 @@ function updateCity(dt) {
       if (dd < 280 * FIRE_R && !hero.dead && !cutscene && canFire(p.x, p.y) && cityLos(p.x, p.y, hero.x, hero.y)) { p.cd -= dt; if (p.cd <= 0) { copShoot(p, hero, p.swat); p.cd = (p.swat ? rand(0.25, 0.4) : rand(0.6, 0.95)) * FIRE_K; } }
     }
     // пеший коп: при розыске встает и стреляет по игроку
-    else if (!busy && p.cop && playing && stars() > 0) {
+    else if (!busy && p.cop && playing && stars() > 0 && !p.ret) {
       const dd = Math.hypot(P.x - p.x, P.y - p.y);
       if (dd < 270 * FIRE_R) { busy = true; p.aim = Math.atan2(P.y - p.y, P.x - p.x); if (canFire(p.x, p.y)) p.cd -= dt; if (p.cd <= 0) { copShoot(p, P); p.cd = rand(0.7, 1.1) * FIRE_K; } }
     }
@@ -2197,7 +2255,9 @@ function updateCity(dt) {
         if (p.cop) { if (p.swat) stat.swat++; else stat.cops++; addCrimeStar('Сбил копа! Розыск ★★', 2, true); } else { stat.peds++; pedHits++; if (pedHits >= 2) addCrimeStar('Сбил еще одного! Розыск ★'); }
       }
     }
-    if (!p.hostile && !p.post && Math.hypot(p.x - P.x, p.y - P.y) > 1300) { peds.splice(i, 1); spawnPed(false); }
+    const farOff = Math.hypot(p.x - P.x, p.y - P.y) > 1300;
+    if (farOff && p.bail) peds.splice(i, 1);  // экипаж патруля: машину уже убрали, убираем и его
+    else if (farOff && !p.hostile && !p.post) { peds.splice(i, 1); spawnPed(false); }
   }
 
   // пули на улице
