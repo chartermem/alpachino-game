@@ -32,7 +32,7 @@
 /* Яндекс.Метрика. Номер счетчика вписывается в METRIKA; пока строка пустая,
    ничего не грузится – страница работает и локально, и без интернета. */
 (function () {
-  var METRIKA = '';
+  var METRIKA = '113961359';
   if (!METRIKA) return;
   (function (m, e, t, r, i, k, a) {
     m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
@@ -40,7 +40,7 @@
     k = e.createElement(t); a = e.getElementsByTagName(t)[0];
     k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
   })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
-  ym(METRIKA, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true });
+  ym(METRIKA, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
   window.goal = function (name, params) { try { ym(METRIKA, 'reachGoal', name, params); } catch (e) {} };
 })();
 </script>
@@ -3980,12 +3980,15 @@ function frame(now) {
 
 document.getElementById('btn-start').addEventListener('click', start);
 document.getElementById('btn-again').addEventListener('click', start);
+// воронка в Метрике: сколько дошло от игры до пресейва и до заявки на розыгрыш
+const btnPresave = document.getElementById('end-link');
+if (btnPresave) btnPresave.addEventListener('click', () => goal('PRESAVE'));
 const btnMail = document.getElementById('btn-mail'); // в билде для каталога формы розыгрыша нет
 if (btnMail) btnMail.addEventListener('click', async () => {
   const el = document.getElementById('pmail'), note = document.getElementById('mail-note'), email = (el.value || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { note.textContent = 'проверь адрес'; return; }
   note.textContent = 'отправляю…';
-  try { await Scores.email(email, lastRec || { name: curName }); try { localStorage.setItem(MAIL_KEY, email); } catch (e) {} note.textContent = 'заявка принята: ' + email; }
+  try { await Scores.email(email, lastRec || { name: curName }); try { localStorage.setItem(MAIL_KEY, email); } catch (e) {} note.textContent = 'заявка принята: ' + email; goal('MAIL'); }
   catch (e) { note.textContent = 'нет связи – попробуй еще раз'; }
 });
 document.getElementById('btn-ad').addEventListener('click', () => closeRevive(true));
