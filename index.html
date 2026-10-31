@@ -884,7 +884,9 @@ function makeCar(x, y, angle, kind, type) {
   const tp = CAR_TYPES[type];
   const c = { x, y, angle, speed: 0, kind, type, r: tp.r, len: tp.len, wid: tp.wid, hp: 100 * CAR_HP_K, maxHp: 100 * CAR_HP_K, dead: false,
     maxSpeed: tp.maxSpeed, acc: tp.acc, brake: 380, turn: tp.turn, drag: 0.55, color: '#F2B01E', braking: false, stuck: 0, reverseT: 0 };
-  if (kind === 'cop') { c.color = '#E9E9F0'; c.hp = 60; c.maxSpeed = 200; c.acc = 230; c.turn = 3.2; }
+  // прочность патруля ниже обычной – но и максимум у него свой, иначе целая машина
+  // считается полуразбитой и дымит из-под капота прямо с выезда
+  if (kind === 'cop') { c.color = '#E9E9F0'; c.hp = c.maxHp = 60; c.maxSpeed = 200; c.acc = 230; c.turn = 3.2; }
   if (kind === 'civ') { c.color = pick(CIV_COLORS); }
   return c;
 }
@@ -1931,7 +1933,7 @@ function arriveCityCars(n, waveNo) {
     const swat = (waveNo === 0 && n === 0) || Math.random() < 0.5; // спецназ едет с самого начала, в первой волне – точно
     const c = makeCar(cell.x, cell.y, 0, 'cop', swat ? 'van' : 'sedan');
     if (swat) { c.color = '#1C2230'; c.swat = true; c.maxSpeed = 250; } else c.maxSpeed = 290;
-    c.hp = 80; c.count = cnt; c.lane = false; c.chasing = true;
+    c.hp = c.maxHp = 80; c.count = cnt; c.lane = false; c.chasing = true;
     standCars.push(c);
   }
 }
