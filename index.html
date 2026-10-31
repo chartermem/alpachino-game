@@ -71,6 +71,7 @@ canvas.aim{cursor:none}
 .px{display:inline-block;width:16px;height:16px;image-rendering:pixelated;background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 2px 0 #000)}
 .px.star{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9' shape-rendering='crispEdges'%3E%3Cpath fill='%23F2B01E' d='M4 0h1v3h4v1h-1v1h-1v1h1v3h-1v-1h-1v-1h-1v-1h-1v1h-1v1h-1v1h-1v-3h1v-1h-1v-1h-1v-1h4z'/%3E%3C/svg%3E")}
 .px.star.off{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9' shape-rendering='crispEdges'%3E%3Cpath fill='%233A3A44' d='M4 0h1v3h4v1h-1v1h-1v1h1v3h-1v-1h-1v-1h-1v-1h-1v1h-1v1h-1v1h-1v-3h1v-1h-1v-1h-1v-1h4z'/%3E%3C/svg%3E")}
+.px.inline{width:1em;height:1em;vertical-align:-.14em;margin:0 .05em} /* звезда внутри строки титра: по кеглю текста */
 .px.heart{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'%3E%3Cpath fill='%23C8102E' d='M1 0h2v1h1v1h1v-1h1v-1h2v1h1v3h-1v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-1h-1v-3h1z'/%3E%3Cpath fill='%23FF6A7A' d='M1 1h1v1h-1z'/%3E%3C/svg%3E")}
 .ic{display:inline-block;width:14px;height:14px;image-rendering:pixelated;background-size:contain;background-repeat:no-repeat;background-position:center;vertical-align:middle;filter:drop-shadow(0 2px 0 #000)}
 .ic.w-pistol,.ic.w-shotgun,.ic.w-rifle{width:22px;height:12px;margin-right:6px}
@@ -2815,7 +2816,11 @@ function showLyric(text, big) {
 function toast(text) {
   const el = document.getElementById('toast');
   el.classList.remove('show'); void el.offsetWidth; // перезапуск анимации, если титры идут подряд
-  el.textContent = text; el.classList.toggle('star', text.indexOf('★') >= 0 || /розыск/i.test(text)); el.classList.add('show');
+  // Символа ★ нет ни в пиксельном шрифте титра, ни в шрифте HUD: браузер подставлял его
+  // из шрифта системы, и звезда получалась гладкой рядом с пиксельными буквами. Ставим ту
+  // же картинку, что и в HUD, – она масштабируется по кеглю строки.
+  el.innerHTML = esc(text).replace(/★/g, '<i class="px star inline"></i>');
+  el.classList.toggle('star', text.indexOf('★') >= 0 || /розыск/i.test(text)); el.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
 }
 
@@ -3510,8 +3515,13 @@ function drawFloaters() {
   ctx.font = '9px "Press Start 2P", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const f of floaters) {
     ctx.globalAlpha = clamp(f.life / 0.5, 0, 1);
-    ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x + 1, f.y + 1);
-    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    // звезда в надписи над бонусом – тем же спрайтом, что в HUD: в пиксельном шрифте ★ нет
+    const star = f.text.indexOf('★') >= 0;
+    const text = star ? f.text.replace('★', '') : f.text;
+    const w = ctx.measureText(text).width, x = star ? f.x - 5 : f.x;
+    ctx.fillStyle = '#000'; ctx.fillText(text, x + 1, f.y + 1);
+    ctx.fillStyle = f.color; ctx.fillText(text, x, f.y);
+    if (star) drawPix('fx-star' + f.color, PIX.star, { '#': f.color }, 1, x + w / 2 + 5, f.y, true);
   }
   ctx.globalAlpha = 1;
 }
