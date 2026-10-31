@@ -1976,7 +1976,6 @@ function copBail(c) {
     peds.push(p); c.crew.push(p);
   }
   c.out = true; c.speed = 0; c.braking = false; c.haltT = 0;
-  c.wasCop = true; // угонят – машина все равно остается с мигалкой, это видно в кадре
 }
 // Экипаж снаружи. Игрок уехал – бегут обратно и садятся, всех положили – машина брошена.
 // Возвращает 'out' (стоят и стреляют), 'back' (сели, можно ехать) или 'lost' (экипажа нет).
@@ -2438,6 +2437,11 @@ function jackCar(c) {
   if (scene && (scene.id === 'stand' || (scene.id === 'tohide' && arrived))) { toast('Тачку с кассой не бросим'); return; }
   if (c.broken) { toast('Не заведется'); return; }
   if (c !== player) {
+    // Ниже kind становится 'player', и по нему уже не узнать, что это был патруль. Метку
+    // ставим ровно здесь, в момент угона: раскраска остается, а мигалка гаснет – за рулем
+    // мы. Раньше ее ставила высадка экипажа, и мигалка выключалась у чужой машины, стоило
+    // полиции выйти, – больше не включалась уже никогда.
+    if (c.kind === 'cop') c.wasCop = true;
     const idx = civs.indexOf(c); if (idx >= 0) { civs.splice(idx, 1); dropPed(c.x + Math.cos(c.angle + Math.PI / 2) * 22, c.y + Math.sin(c.angle + Math.PI / 2) * 22); }
     const pi = parked.indexOf(c); if (pi >= 0) parked.splice(pi, 1);
     player.kind = 'civ'; player.parked = true; player.speed = 0; parked.push(player);
