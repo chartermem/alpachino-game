@@ -164,14 +164,18 @@ h1{font-family:var(--poster);font-weight:400;font-size:clamp(20px,6vmin,36px);li
 .name{font-family:var(--hud);font-size:12px;padding:12px 14px;background:#1A1A22;color:var(--ink);border:2px solid var(--gold-deep);text-align:center;text-transform:uppercase;width:min(260px,80vw);outline:none;letter-spacing:.06em}
 .name:focus{border-color:var(--gold)}
 .name::placeholder{color:var(--muted)}
-.board{font-family:var(--hud);font-size:9px;line-height:2;color:var(--ink-dim);width:min(360px,88vw);font-variant-numeric:tabular-nums;
+/* flex-shrink:0 обязателен: у блока со своей прокруткой минимальный размер считается
+   нулевым, и на тесном экране таблица схлопывалась – не было видно ни строки */
+.board{font-family:var(--hud);font-size:9px;line-height:2;color:var(--ink-dim);width:min(360px,88vw);font-variant-numeric:tabular-nums;flex-shrink:0;
   max-height:min(30vh,300px);overflow-y:auto;overscroll-behavior:contain;padding-right:6px;scrollbar-width:thin;scrollbar-color:var(--gold-deep) transparent}
 .board h3{position:sticky;top:0;background:var(--ground);padding:2px 0}
 .touch .screen{gap:12px;padding:20px 16px}
 .touch .sub{font-size:9px;line-height:1.75}
 .touch .tasklist{gap:5px}
 .touch .stats{font-size:10px;line-height:1.9}
-.touch .board{max-height:24vh}
+/* на телефоне таблица короче (пять строк) и без своей прокрутки: прокрутка внутри
+   прокрутки пальцем не ловится, лист крутим целиком */
+.touch .board{max-height:none;overflow:visible;padding-right:0}
 .touch .mailbox{gap:5px}
 .touch .mailbox .hint{line-height:1.6}
 .board h3{font-size:9px;color:var(--gold);letter-spacing:.14em;margin:0 0 4px;font-weight:400;text-transform:uppercase}
@@ -573,13 +577,14 @@ const Scores = {
 };
 const esc = str => String(str).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // топ-10, а если своя строка ниже – многоточие и она с местом; в заголовке – сколько всего игроков
+const TOP_ROWS = TOUCH ? 5 : 10; // на телефоне экран короткий: пятерки хватает, своя строка все равно прилипнет снизу
 function renderBoard(id, me, list) {
-  list = (list || Scores.load()).slice(0, 10);
+  list = (list || Scores.load()).slice(0, TOP_ROWS);
   const total = Math.max(Scores.total, list.length);
-  const title = (CONFIG.scoresUrl && !Scores.online ? (Scores.tried ? 'рекорды · нет связи, только этот браузер' : 'рекорды · загружаю…') : 'рекорды') + (total > 10 ? ' · игроков: ' + total : '');
+  const title = (CONFIG.scoresUrl && !Scores.online ? (Scores.tried ? 'рекорды · нет связи, только этот браузер' : 'рекорды · загружаю…') : 'рекорды') + (total > TOP_ROWS ? ' · игроков: ' + total : '');
   const row = (r, n) => '<div class="row' + (r.name === me ? ' me' : '') + '"><span>' + n + '. ' + esc(r.name) + '</span><span>' + (r.won ? 'дожил' : fmt(r.time)) + '</span><span>$' + r.cash + '</span></div>';
   let html = list.length ? list.map((r, i) => row(r, i + 1)).join('') : '<div>пока никого – будь первым</div>';
-  if (me && Scores.me && Scores.me.name === me && Scores.me.rank > 10) html += '<div class="mine"><div class="dots">···</div>' + row(Scores.me, Scores.me.rank) + '</div>'; // своя строка прилипает к низу таблицы – крутить до нее не надо
+  if (me && Scores.me && Scores.me.name === me && Scores.me.rank > TOP_ROWS) html +='<div class="mine"><div class="dots">···</div>' + row(Scores.me, Scores.me.rank) + '</div>'; // своя строка прилипает к низу таблицы – крутить до нее не надо
   document.getElementById(id).innerHTML = '<h3>' + title + '</h3>' + html;
 }
 function playerName() {
@@ -1873,11 +1878,13 @@ function carHitsPerson(car, person, k) {
   if (d >= car.r + person.r) return 0;
   const nx = (person.x - car.x) / (d || 1), ny = (person.y - car.y) / (d || 1);
   person.x = car.x + nx * (car.r + person.r); person.y = car.y + ny * (car.r + person.r);
-  const f = Math.abs(car.speed) / 270;
-  // на скорости давит насмерть; медленный толчок только сбивает с ног. В машине жизни не трогаются вообще – только прочность
-  if (f > 0.3) { person.hp = 0; car.speed *= 0.7; blood(person.x, person.y, 14); sfx.thud(1); }
-  else if (f > 0.12) { person.stun = 0.45; car.speed *= 0.8; particles.push({ x: person.x, y: person.y, vx: 0, vy: -20, life: 0.3, size: 5, color: '#F3EAD7' }); }
-  return f;
+  // k – скорость, выше которой давит насмерть; ниже сороковой доли от нее только сбивает
+  // с ног. Раньше порог был общий (81) и городской трафик, который едет 35–60, человека
+  // не давил вообще: по улице можно было ходить сквозь поток. В машине жизни не трогаются.
+  const sp = Math.abs(car.speed), kill = k || 80;
+  if (sp > kill) { person.hp = 0; car.speed *= 0.7; blood(person.x, person.y, 14); sfx.thud(1); }
+  else if (sp > kill * 0.4) { person.stun = 0.45; car.speed *= 0.8; particles.push({ x: person.x, y: person.y, vx: 0, vy: -20, life: 0.3, size: 5, color: '#F3EAD7' }); }
+  return sp / 270;
 }
 // выстрел из купленного ствола – в городе или в помещении
 function fireWeapon(aim) {
