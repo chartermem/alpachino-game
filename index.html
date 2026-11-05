@@ -213,7 +213,6 @@ h1{font-family:var(--poster);font-weight:400;font-size:clamp(20px,6vmin,36px);li
 .stats b{color:var(--gold);font-weight:400}
 /* итог одной строкой: сумма крупно, остальное на финальном экране не нужно */
 .stats .cash{display:block;font-size:26px;line-height:1.3;color:var(--gold)}
-.note{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom));text-align:center;font-size:7px;line-height:1.8;color:var(--muted)}
 #btn-act{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));width:64px;height:64px;border-radius:50%;border:2px solid rgba(243,234,215,.5);background:rgba(14,14,18,.6);color:var(--gold);font-family:var(--hud);font-size:9px;line-height:1.3;letter-spacing:.04em;text-transform:uppercase;touch-action:none;padding:0}
 #btn-act:active{background:rgba(242,176,30,.35)}
 #btn-act.fire{border-color:var(--blood);color:var(--ink);background:rgba(200,16,46,.35);width:74px;height:74px}
@@ -276,7 +275,6 @@ h1{font-family:var(--poster);font-weight:400;font-size:clamp(20px,6vmin,36px);li
   <div class="plats only-site" id="plats-start"></div>
   <div class="hint" id="hint-sound">M – звук вкл / выкл</div>
   <div class="hint" id="hint"></div>
-  <div class="note" id="note"></div>
 </div>
 
 <div id="screen-ad" class="screen" hidden>
@@ -1183,17 +1181,11 @@ const stars = () => Math.min(5, Math.max(starsAuto, starsCrime));
 const audio = new Audio();
 audio.preload = 'auto';
 let audioReady = false, audioPlaying = false;
-audio.addEventListener('loadedmetadata', () => { if (isFinite(audio.duration) && audio.duration > 10 && !qs.get('d')) CONFIG.duration = audio.duration; audioReady = true; updateNote(); });
-audio.addEventListener('error', () => { audioReady = false; updateNote(); });
+audio.addEventListener('loadedmetadata', () => { if (isFinite(audio.duration) && audio.duration > 10 && !qs.get('d')) CONFIG.duration = audio.duration; audioReady = true; });
+audio.addEventListener('error', () => { audioReady = false; });
 audio.addEventListener('ended', () => { if (state === 'play') finale(); });
 audio.src = CONFIG.audioSrc; audio.volume = 0.8;
 
-function updateNote() {
-  document.getElementById('note').textContent = audioReady
-    ? 'Прототип. Трек: ' + fmt(CONFIG.duration)
-    : 'Прототип. Трек не подключен – игра идет по таймеру ' + fmt(CONFIG.duration);
-}
-updateNote();
 // схема управления на стартовом экране: клавиши для ПК, джойстик и кнопка для телефона
 document.getElementById('hint-sound').hidden = TOUCH; // на телефоне клавиши M нет – звук регулируется кнопкой громкости
 document.getElementById('hint').innerHTML = TOUCH
